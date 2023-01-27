@@ -61,7 +61,7 @@ public class OverlayService extends Service implements View.OnTouchListener {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
 
     private Handler mAnimationHandler = new Handler();
-    private float lastX, lastY;
+    private float firstX, firstY, lastX, lastY;
     private int lastYPosition;
     private boolean dragging;
     private static final float MAXIMUM_OPACITY_ALLOWED_FOR_S_AND_HIGHER = 0.8f;
@@ -127,6 +127,9 @@ public class OverlayService extends Service implements View.OnTouchListener {
                 int width = call.argument("width");
                 int height = call.argument("height");
                 resizeOverlay(width, height, result);
+            } else if (call.method.equals("updateDrag")) {
+                boolean enableDrag = call.argument("enableDrag");
+                updateDrag(enableDrag, result);
             }
         });
         overlayMessageChannel.setMessageHandler((message, reply) -> {
@@ -300,6 +303,25 @@ public class OverlayService extends Service implements View.OnTouchListener {
             result.success(false);
         }
     }
+
+    private void updateDrag(boolean enableDrag, MethodChannel.Result result) {
+        WindowSetup.enableDrag = enableDrag;
+        if (enableDrag) {
+            result.success(true);
+            return;
+        }
+
+        if (windowManager != null) {
+            WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
+            params.x = 0;
+            params.y = 0;
+            windowManager.updateViewLayout(flutterView, params);
+            result.success(true);
+        } else {
+            result.success(false);
+        }
+    }
+
 //
 //    private void setDraggingOverlay(boolean value, MethodChannel.Result result) {
 //        if (windowManager != null) {
@@ -373,7 +395,8 @@ public class OverlayService extends Service implements View.OnTouchListener {
                     dragging = false;
                     lastX = event.getRawX();
                     lastY = event.getRawY();
-
+                    firstX = event.getRawX();
+                    firstY = event.getRawY();
 
                     closeSection.setVisibility(View.VISIBLE);
                     // start the animation
@@ -408,8 +431,11 @@ public class OverlayService extends Service implements View.OnTouchListener {
                     dragging = true;
                     break;
                 case MotionEvent.ACTION_UP:
-
-
+                    float diffx = event.getRawX() - firstX;
+                    float diffy = event.getRawY() - firstY;
+                    if (diffx == 0.f && diffy == 0.f) {
+                        overlayMessageChannel.send("bubbleClick", null);
+                    }
                     // start the animation
 //                    imageIcon.startAnimation(animMoveToTop);
 
